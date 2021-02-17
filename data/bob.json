@@ -1,0 +1,20 @@
+{
+  "quorum": 2,
+  "id": "bob",
+  "sequence_number": 1,
+  "private_key": "uBQn+RAuI506/G4RQD+RYJO+EtVr/IbSegx79tfsZm4=",
+  "rabbitmq": "localhost",
+  "directory": "http://localhost:8000",
+  "others": [
+    {
+      "id": "charlie",
+      "sequence_number": 2,
+      "public_key": "kTdCnHnIr4VfyrYfqOpQytA5pxd4ySW4PNum/bftNqg="
+    },
+    {
+      "id": "alice",
+      "sequence_number": 0,
+      "public_key": "H8CA6aMWgwNS74mGiAUOPdydHUdcPnmNa+1RToXHAt8="
+    }
+  ]
+}

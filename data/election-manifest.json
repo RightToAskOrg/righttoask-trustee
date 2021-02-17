@@ -1,0 +1,87 @@
+{
+    "geopolitical_units": [{
+        "object_id": "dummy-district",
+        "name": "dummy",
+        "type": "other"
+    }],
+    "parties": [],
+    "candidates": [
+        {
+            "object_id": "yes",
+            "name": {
+                "text": [
+                    {
+                        "value": "Yes",
+                        "language": "en"
+                    }
+                ]
+            }
+        },
+        {
+            "object_id": "no",
+            "name": {
+                "text": [
+                    {
+                        "value": "No",
+                        "language": "en"
+                    }
+                ]
+            }
+        }
+    ],
+    "contests": [
+        {
+            "@type": "ReferendumContest",
+            "object_id": "righttoask-contest",
+            "sequence_order": 1,
+            "ballot_selections": [
+                {
+                    "object_id": "righttoask-upvote",
+                    "sequence_order": 0,
+                    "candidate_id": "yes"
+                },
+                {
+                    "object_id": "righttoask-downvote",
+                    "sequence_order": 1,
+                    "candidate_id": "no"
+                }
+            ],
+            "ballot_title": {
+                "text": [
+                    {
+                        "value": "Did you want to upvote this question?",
+                        "language": "en"
+                    }
+                ]
+            },
+            "vote_variation": "one_of_m",
+            "electoral_district_id": "dummy-district",
+            "name": "The RightToAsk Question",
+            "number_elected": 1,
+            "votes_allowed": 1
+        }
+    ],
+    "ballot_styles": [{
+        "object_id": "righttoask-ballot-style",
+        "geopolitical_unit_ids": ["dummy-district"]
+    }],
+    "name": {
+        "text": [
+            {
+                "value": "RightToAsk Vote",
+                "language": "en"
+            }
+        ]
+    },
+    "contact_information": {
+        "address_line": [
+            "1 Collins St",
+            "Melbourne 3000"
+        ],
+        "name": "RightToAsk"
+    },
+    "start_date": "2021-02-01T08:00:00-05:00",
+    "end_date": "2021-03-01T20:00:00-05:00",
+    "election_scope_id": "righttoask-ballot",
+    "type": "general"
+}
