@@ -322,14 +322,16 @@ def main(sign_key, guardian, channel, queue, others):
         # failed to verify backups
         return
 
-    key = base64.b64encode(bytes.fromhex(guardian.publish_joint_key().to_hex()))
+    key = bytes.fromhex(guardian.publish_joint_key().to_hex())
     signature = base64.b64encode(sign_key.sign(key)[:64])
+
+    print(key)
 
     output = {
         "guardian": json.loads(write_json(guardian, strip_privates=False)),
         # ElectionGuard doesn't have base 64 encoding for some reason
         "pubkey": {
-            "key": key.decode(),
+            "key": base64.b64encode(key).decode(),
             "signatures": {
                 guardian.object_id: signature.decode()
             }

@@ -24,6 +24,10 @@ import uvicorn
 
 
 def load_guardian_key(filename: str) -> (Guardian, dict):
+    """
+    Load a guardian key file, creating a guardian and its signature of the public key.
+    """
+
     # Deserialises a DataStore (list of lists) correctly, since the read_json() method doesn't.
     def load_data_store(obj, ty):
         ids = [elem[0] for elem in obj]
@@ -69,6 +73,8 @@ def check_exists(manifest, field_name):
         print(f"`{field_name}` missing from manifest")
         exit(1)
 
+app = FastAPI()
+
 
 # Load static data for the server
 parser = argparse.ArgumentParser(description="Trustee for the RightToAsk system.")
@@ -77,17 +83,19 @@ parser.add_argument("trustee_id", help="The trustee ID to use. Loads key informa
 parser.add_argument("--port", help="The port to listen on.", type=int, required=True)
 args = parser.parse_args()
 
+# Declare globals
 trustee_id = args.trustee_id
 
 guardian, pubkey = load_guardian_key(os.path.join("keys", trustee_id))
 manifest = load_manifest(os.path.join("data", trustee_id))
-directory = manifest["directory"]
+# directory = manifest["directory"]
 
 election_desc = load_election_manifest()
 
 # ElectionGuard doesn't have a nice way to deserialise keys, unfortunately.
-hex_pubkey = base64.b64decode(pubkey["key"]).hex()
-pubkey: ElectionJointKey = group.int_to_p(int(hex_pubkey, 16))
+pubkey_b64 = pubkey["key"]
+pubkey_hex = base64.b64decode(pubkey_b64).hex()
+pubkey = group.int_to_p(int(pubkey_hex, 16))
 
 builder = ElectionBuilder(
     number_of_guardians=guardian.ceremony_details.number_of_guardians,
@@ -105,19 +113,20 @@ except:
     traceback.print_exc()
     exit(1)
 
-app = FastAPI()
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="localhost", port=args.port, loop="asyncio")
+    # For some reason, setting `debug=False` here causes the server to randomly terminate after responding to share
+    # requests.
+    uvicorn.run("main:app", host="localhost", port=args.port, loop="uvloop", debug=True)
 
 
-# FastAPI declarations
+# FastAPI model declarations; below should be fleshed out with the true structure
 class Ciphertexts(BaseModel):
     body: str
 
 
 @app.get("/share")
-def get_dec_share(ciphertexts: Ciphertexts):
-    ciphertexts = [read_json(json.dumps(ballot), CiphertextAcceptedBallot) for ballot in json.loads(ciphertexts.body)]
+def get_dec_share(message: Ciphertexts):
+    ciphertexts = [read_json(json.dumps(ballot), CiphertextAcceptedBallot) for ballot in json.loads(message.body)]
     tally = CiphertextTally("my-tally", metadata, context)
     tally.batch_append(ciphertexts)
     share = compute_decryption_share(guardian, tally, context)
@@ -127,5 +136,6 @@ def get_dec_share(ciphertexts: Ciphertexts):
 
 @app.get("/pubkey")
 def get_pubkey():
-    signature = base64.b64encode(sign_key.sign(write_json(pubkey).encode("utf-8"))[:64]).decode()
-    return write_json({"pubkey": pubkey, "signature": signature})
+    signature = sign_key.sign(base64.b64decode(pubkey_b64))[:64]
+    signature = base64.b64encode(signature).decode()
+    return {"pubkey": pubkey_b64, "signature": signature}
