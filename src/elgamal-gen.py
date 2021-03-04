@@ -115,69 +115,6 @@ def share_pubkeys(sign_key, guardian, channel, queue, others):
     print("public key sharing successful")
 
 
-def verify_pubkeys(sign_key, guardian, channel, queue, others):
-    # Collect received keys
-    election_keys = dict(guardian.guardian_election_public_keys().keys())
-    auxiliary_keys = dict(guardian.guardian_auxiliary_public_keys().keys())
-
-    verified = {(other.guardian_id, other2.guardian_id): False for other in others.values() for other2 in
-                others.values() if other != other2}
-    received = {(other.guardian_id, other2.guardian_id): False for other in others.values() for other2 in
-                others.values() if other != other2}
-
-    # Broadcast the keys we received
-    for other in others.values():
-        for other_id in election_keys.keys():
-            # Do not bother verifying keys where "for" and "from" are the same, or where "for" is this guardian
-            if other_id != guardian.object_id and other_id != other.guardian_id:
-                msg = json.dumps({
-                    "for": other_id,
-                    "from": guardian.object_id,
-                    "election": write_json(election_keys[other_id]),
-                    "auxiliary": write_json(auxiliary_keys[other_id])
-                })
-                signature = sign_key.sign(msg.encode("utf-8"))
-                signed_msg = base64.b64encode(signature)
-                channel.basic_publish(exchange="",
-                                      routing_key=guardian_queue(other.guardian_id),
-                                      body=signed_msg)
-
-    def recv_pubkey(ch, method, _properties, body):
-        try:
-            signed = SignedMessage(base64.b64decode(body))
-            data = json.loads(signed[64:])
-            from_id = data["from"]
-            for_id = data["for"]
-
-            received[(from_id, for_id)] = True
-            if from_id != guardian.object_id:
-                try:
-                    find_guardian_by(others, from_id).verify_key.verify(signed)
-                    if data["election"] == write_json(election_keys[for_id]) \
-                            and data["auxiliary"] == write_json(auxiliary_keys[for_id]):
-                        verified[(from_id, for_id)] = True
-                        print(f"verified pubkey set received by {from_id} for {for_id}")
-
-                    if all(received.values()):
-                        channel.basic_cancel(consumer_tag="pubkey-check")
-                except BadSignatureError:
-                    print(f"failed to verify signature for {from_id}")
-        except:
-            # Any number of deserialisation problems can occur here
-            print("failed to deserialise message")
-            traceback.print_exc()
-        finally:
-            ch.basic_ack(delivery_tag=method.delivery_tag)
-
-    channel.basic_consume(queue=queue, on_message_callback=recv_pubkey, consumer_tag="pubkey-check")
-    channel.start_consuming()
-
-    if all(verified.values()):
-        print("pubkey verification successful")
-    else:
-        print("pubkey verification failed")
-
-
 def share_backups(sign_key, guardian, channel, queue, others):
     for other in others.values():
         backup = get_optional(guardian.share_election_partial_key_backup(other.guardian_id))
@@ -311,10 +248,8 @@ def verify_backups(sign_key, guardian, channel, queue, others):
 
 def main(sign_key, guardian, channel, queue, others):
     share_pubkeys(sign_key, guardian, channel, queue, others)
-    verify_pubkeys(sign_key, guardian, channel, queue, others)
 
     guardian.generate_election_partial_key_backups()
-    # Have one guardian deliberately send wrong backups for testing purpsoes
     share_backups(sign_key, guardian, channel, queue, others)
     outcome = verify_backups(sign_key, guardian, channel, queue, others)
 
@@ -324,8 +259,6 @@ def main(sign_key, guardian, channel, queue, others):
 
     key = bytes.fromhex(guardian.publish_joint_key().to_hex())
     signature = base64.b64encode(sign_key.sign(key)[:64])
-
-    print(key)
 
     output = {
         "guardian": json.loads(write_json(guardian, strip_privates=False)),

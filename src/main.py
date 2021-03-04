@@ -12,8 +12,8 @@ from electionguard.decryption import compute_decryption_share
 from electionguard.election import ElectionDescription
 from electionguard.election_builder import ElectionBuilder
 from electionguard.guardian import Guardian
-from electionguard.key_ceremony import ElectionJointKey, CeremonyDetails, ElectionKeyPair, ElectionPartialKeyBackup, \
-    ElectionPublicKey, ElectionPartialKeyVerification
+from electionguard.key_ceremony import CeremonyDetails, ElectionKeyPair, ElectionPartialKeyBackup, ElectionPublicKey,\
+    ElectionPartialKeyVerification
 from electionguard.serializable import read_json, write_json
 from electionguard.tally import CiphertextTally
 from fastapi import FastAPI
@@ -21,6 +21,15 @@ from nacl import encoding
 from nacl.signing import SigningKey
 from pydantic import BaseModel
 import uvicorn
+from functools import lru_cache
+from electionguard.scheduler import Scheduler
+
+
+# This is important to prevent crashing due to scheduling conflicts between EG and FastAPI
+# See: https://github.com/microsoft/electionguard-web-api/blob/main/app/core/scheduler.py
+@lru_cache
+def get_scheduler() -> Scheduler:
+    return Scheduler()
 
 
 def load_guardian_key(filename: str) -> (Guardian, dict):
@@ -73,7 +82,16 @@ def check_exists(manifest, field_name):
         print(f"`{field_name}` missing from manifest")
         exit(1)
 
+
 app = FastAPI()
+
+
+# Necessary to prevent the server hanging after SIGINT
+@app.on_event("shutdown")
+def on_shutdown() -> None:
+    # Ensure a clean shutdown of the singleton Scheduler
+    scheduler = get_scheduler()
+    scheduler.close()
 
 
 # Load static data for the server
@@ -88,7 +106,6 @@ trustee_id = args.trustee_id
 
 guardian, pubkey = load_guardian_key(os.path.join("keys", trustee_id))
 manifest = load_manifest(os.path.join("data", trustee_id))
-# directory = manifest["directory"]
 
 election_desc = load_election_manifest()
 
@@ -114,9 +131,7 @@ except:
     exit(1)
 
 if __name__ == "__main__":
-    # For some reason, setting `debug=False` here causes the server to randomly terminate after responding to share
-    # requests.
-    uvicorn.run("main:app", host="localhost", port=args.port, loop="uvloop", debug=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=args.port, loop="uvloop")
 
 
 # FastAPI model declarations; below should be fleshed out with the true structure
@@ -126,10 +141,11 @@ class Ciphertexts(BaseModel):
 
 @app.get("/share")
 def get_dec_share(message: Ciphertexts):
+    scheduler = get_scheduler()
     ciphertexts = [read_json(json.dumps(ballot), CiphertextAcceptedBallot) for ballot in json.loads(message.body)]
     tally = CiphertextTally("my-tally", metadata, context)
-    tally.batch_append(ciphertexts)
-    share = compute_decryption_share(guardian, tally, context)
+    tally.batch_append(ciphertexts, scheduler=scheduler)
+    share = compute_decryption_share(guardian, tally, context, scheduler=scheduler)
     signature = base64.b64encode(sign_key.sign(write_json(share).encode("utf-8"))[:64]).decode()
     return write_json({"share": share, "signature": signature})
 
