@@ -65,11 +65,14 @@ Once all trustees are running, votes can be tallied and jointly decrypted using 
 Descriptions of the manifest formats used in this project are available in `docs/`. `election-manifest.json` is an
 ElectionGuard format; more information [can be found here](https://microsoft.github.io/electionguard-python/0_Configure_Election/).
 
-## Known issues
-* In some settings (reproduced on Manjaro Linux, kernel 5.10.15) running Uvicorn with `debug=False` causes the server to
-suddenly shut down after responding to requests.
-
 ## Todo
 * Documentation of the Python code
 * Complete the share recovery logic
 * RabbitMQ authentication
+* All needs to be over TLS.  Easiest is probably a reverse proxy, e.g. NGINX so that localhost only sees http, while everyone outside sees https.
+
+### Main differences between this and final design
+
+* At the moment, the directory serves the same election manifest each time.  But need to consider how new questions / metadata will be communicated to the trustees.  Perhaps they should request a new election manifest each time; perhaps updates.  Should include a specification of which votes are being decrypted.  This will be a little different to EG's main inteneded use case.   
+* What exactly does the directory send to the trustees? Could be as simple as a single ciphertext.  At the moment, it is.  In the longer term, need to think about privacy attacks by a malicious directory.  Does it suffice to ask the trustees to download BB state at the end of the day and verify that they decrypted the right thing?  (Note that this is not significantly more difficult if they received a single aggregated ciphertext per question than if they received a claim about the whole state of the board.)
+* Trustee needs to authenticate the directory for decryption requests.
